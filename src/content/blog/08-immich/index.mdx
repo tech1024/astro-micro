@@ -1,0 +1,88 @@
+---
+title: "immich 高性能自托管照片和视频管理解决方案"
+description: "一个可以替代 Google photo 和 iCloud photo 的开源应用。"
+date: "2024-05-07"
+---
+
+import Callout from "@/components/Callout.astro";
+
+---
+
+![image.png](https://ossk.cc/file/b013269786fe766d56218.png)
+
+Immich 我认为是为了解决跨平台图片和视频同步管理而设计的解决方案，正如作者对产品的描述：_“Self-hosted photo and video management solution.”_ 拥有了 Immich 你就对自己的照片、视频拥有了所有权，也拥有了一份冗余的方案，更不需要再为相册存储支付一笔价格不菲的费用。
+
+经过一段时间的使用来看，immich 可以较好的代替现有的 iCloud 或 Google Photo 等云厂商的存储方案，或者作为一种照片资源的备份方案也不错。
+
+软件的使用难度不高，对于有 NAS 或者服务器的朋友可以直接通过 `docker-compose up -d` 来启动一套服务，官方同时也给出了一键安装脚本，根据自己的情况可以自行选择。
+
+本文只给大家演示一下通过 docker 来部署本服务，所有的配置都为默认，对于需要自定义的朋友请参考文档手册。
+
+## 下载 docker-compose.yml 文件
+
+```bash
+# 新建工作目录
+mkdir /opt/immich && cd /opt/immich
+
+# 下载 docker-compose.yml
+wget -O docker-compose.yml https://github.com/immich-app/immich/releases/latest/download/docker-compose.yml
+
+# 下载 .env
+wget -O .env https://github.com/immich-app/immich/releases/latest/download/example.env
+
+# （可选）下载 hwaccel.transcoding.yml 与开启 GPU 加快机器学习有关
+wget -O hwaccel.transcoding.yml https://github.com/immich-app/immich/releases/latest/download/hwaccel.transcoding.yml
+
+# （可选）下载 hwaccel.ml.yml 与开启 GPU 加快机器学习有关
+wget -O hwaccel.ml.yml https://github.com/immich-app/immich/releases/latest/download/hwaccel.ml.yml
+```
+
+## 修改 .env 里的变量信息（可选）
+
+```bash
+# You can find documentation for all the supported env variables at https://immich.app/docs/install/environment-variables
+
+# The location where your uploaded files are stored
+UPLOAD_LOCATION=./library
+# The location where your database files are stored
+DB_DATA_LOCATION=./postgres
+
+# The Immich version to use. You can pin this to a specific version like "v1.71.0"
+IMMICH_VERSION=release
+
+# Connection secret for postgres. You should change it to a random password
+DB_PASSWORD=postgres
+
+# The values below this line do not need to be changed
+###################################################################################
+DB_USERNAME=postgres
+DB_DATABASE_NAME=immich
+```
+
+## 启动服务
+
+```bash
+docker compose up -d
+```
+
+## 查看服务状态
+
+```bash
+[deploy@fedora ~]$ docker ps -a
+CONTAINER ID   IMAGE                                                        COMMAND                  CREATED        STATUS                  PORTS                                       NAMES
+2a77b7611ae9   ghcr.io/immich-app/immich-server:release                     "tini -- /bin/bash s…"   19 hours ago   Up 19 hours             0.0.0.0:2283->3001/tcp, :::2283->3001/tcp   immich_server
+80670c8a54fc   ghcr.io/immich-app/immich-server:release                     "tini -- /bin/bash s…"   19 hours ago   Up 19 hours             3001/tcp                                    immich_microservices
+659f3bf43480   registry.hub.docker.com/tensorchord/pgvecto-rs:pg14-v0.2.0   "docker-entrypoint.s…"   19 hours ago   Up 19 hours             5432/tcp                                    immich_postgres
+15a941582e6d   ghcr.io/immich-app/immich-machine-learning:release           "tini -- ./start.sh"     19 hours ago   Up 19 hours                                                         immich_machine_learning
+a3abffdc50db   registry.hub.docker.com/library/redis:6.2-alpine             "docker-entrypoint.s…"   19 hours ago   Up 19 hours             6379/tcp                                    immich_redis
+779105ccbd4e   miniflux/miniflux:latest                                     "/usr/bin/miniflux"      21 hours ago   Up 21 hours             0.0.0.0:8081->8080/tcp, :::8081->8080/tcp
+```
+
+服务启用的是 2283 端口，我们可以通过访问 `http://$IP:2283` 来打开服务。
+
+![picture](https://ossk.cc/file/776e27fb7cee26a447e0a.jpg)
+
+同步手机端的照片需要安装对应平台的 immich，第一次使用需要配置好 后端 API，格式为 `http://$IP:2283/api`
+
+- [官方指南](https://immich.app/docs/overview/introduction)
+- [开源仓库](https://github.com/immich-app/immich)

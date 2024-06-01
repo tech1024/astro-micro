@@ -1,0 +1,188 @@
+---
+title: "Fittrackee 自托管的运动追踪服务"
+description: "FitTrackee 一个自托管的运动追踪应用，它可以轻松的将运动数据同步到服务器，并可以通过 strava 自动同步 Apple watch 和 Garmin 的运动数据📊。"
+date: "2024-05-03"
+---
+
+import Callout from "@/components/Callout.astro";
+
+---
+
+我是有运动习惯的人，这些年的运动数据一直是通过 Apple Watch 同步到 Strava。虽然 Starve 已经能够较好的跟踪自己的运动行为，但其数据毕竟是保存在服务商的云端，这样自己对数据的所有权就变得不可控，另一方面，单一的 Strava 服务也无法满足自己对运动数据分析的需求。FitTrackee 的出现解决了数据同步和持有的问题，它不仅能通过读取 gpx 文件记录运动者的数据，也可以通过 Strava-to-FitTrackee 工具实现自动同步 Strava 的数据到 FitTrackee。通过 FitTrackee 和 Starve 的协同配合，让运动数据的同步、存储、展示变得简单。
+
+FitTrackee 的安装比较简单，支持 Docker 和 Python 两种安装方式，若只是想体验或快速构建一个服务，推荐以 Docker 的方式运行。
+
+## 环境
+
+- OS: Ubuntu 22.04.4 LTS x86_64
+- Kernel: 5.15.0-105-generic
+
+## 前置条件
+
+服务器安装好 Docker 和 Docker-Compose（参考 Docker 官方安装文档）
+
+## FitTrackee 安装
+
+```bash
+➜  ~ cd /opt
+git clone https://github.com/SamR1/FitTrackee.git
+cd FitTrackee
+cp .env.docker .env
+```
+
+.env 配置
+
+```bash
+# Application
+export FLASK_DEBUG=1
+export FLASK_APP=fittrackee/__main__.py
+export FLASK_SKIP_DOTENV=1
+export APP_SETTINGS=fittrackee.config.DevelopmentConfig
+export APP_SECRET_KEY='489yt2h3'
+# export APP_WORKERS=
+export APP_LOG=fittrackee.log
+export UPLOAD_FOLDER=/usr/src/app/uploads
+
+# PostgreSQL
+export DATABASE_URL=postgresql://fittrackee:fittrackee@fittrackee-db:5432/fittrackee
+export DATABASE_TEST_URL=postgresql://fittrackee:fittrackee@fittrackee-db:5432/fittrackee_test
+# export DATABASE_DISABLE_POOLING=
+
+# Redis (required for API rate limits and email sending)
+export REDIS_URL=redis://redis:6379
+
+# API rate limits
+export API_RATE_LIMITS="1000 per 5 minutes"
+
+# Emails
+export UI_URL=http://0.0.0.0:5000
+# For development:
+# export UI_URL=http://0.0.0.0:3000
+export EMAIL_URL=smtp://mail:1025
+export SENDER_EMAIL=admin@dev.com
+export WORKERS_PROCESSES=2
+
+# Workouts
+# export TILE_SERVER_URL=
+# export STATICMAP_SUBDOMAINS=
+# export MAP_ATTRIBUTION=
+```
+
+## 构建镜像
+
+```bash
+make docker-build
+```
+
+## 初始化数据库
+
+```bash
+make docker-init
+```
+
+## 查看服务运行状态
+
+```bash
+root@ubuntu:~# docker ps -a
+CONTAINER ID   IMAGE                      COMMAND                  CREATED        STATUS        PORTS                                            NAMES
+75d607b7a3f0   fittrackee_fittrackee      "/bin/sh -c 'flask r…"   26 hours ago   Up 26 hours   0.0.0.0:5000->5000/tcp                           fittrackee
+0c36797e6ae7   fittrackee_fittrackee-db   "docker-entrypoint.s…"   26 hours ago   Up 26 hours   0.0.0.0:5435->5432/tcp                           fittrackee-db
+a19f2799eddf   mailhog/mailhog            "MailHog"                26 hours ago   Up 26 hours   0.0.0.0:1025->1025/tcp, 0.0.0.0:8025->8025/tcp   fittrackee-mailhog
+be46e4adb723   redis:latest               "docker-entrypoint.s…"   26 hours ago   Up 26 hours   0.0.0.0:6379->6379/tcp                           fittrackee-redis
+```
+
+打开 `localhost:5000` 注册账号。
+
+![image.png](https://ossk.cc/file/46bc5e94fa8e9faa6005b.png)
+
+注册账号在提交时，会给邮箱发送一封验证邮件，由于我们没有配置邮箱服务器，所以无法收到激活邮件。我们可以打开 localhost:8025 的邮箱测试工具，复制并打开如下的链接即可激活账号。（将 `0.0.0.0`替换为实际的 ip 地址）
+
+![image.png](https://ossk.cc/file/18e6e1e76f6074ff17228.png)
+
+## 手动添加第一条运动记录
+
+可以选择单个 GPX 文件，也可以选择 ZIP 格式的压缩包。（对于 iPhone 用户可以直接从健康中导出数据后上传）
+
+![image.png](https://ossk.cc/file/2c5713c115ed6247627b8.png)
+
+## 通过 Strava-to-FitTrackee 自动同步 Strava 的数据
+
+通过本工具可以轻易实现将 Strava 的数据同步到 FitTrackee 中，这里简单的展示此工具的使用。
+
+## 前置条件
+
+1. 配置好 Strava API Application 和 FitTrackee
+2. FitTrackee 实例需要绑定一个域名，并且正确配置了 HTTPS，否则无法正确实现授权。
+3. FitTrackee 需要勾选 `workouts:read, workouts:write, 和 profile:read` 三个权限
+
+![image.png](https://ossk.cc/file/513078275905236603c3d.png)
+
+![image.png](https://ossk.cc/file/51226c7337893945bc1f3.png)
+
+## 安装
+
+```bash
+cd /opt
+git clone https://github.com/jat255/strava-to-fittrackee.git
+cd strava-to-fittrackee
+apt install python3-poetry
+poetry install
+cp .env.example .env
+```
+
+.env 文件的配置
+
+```bash
+STRAVA_TOKEN_FILE = .strava.tokens.json
+FITTRACKEE_TOKEN_FILE = .fittrackee.tokens.json
+
+# Strava configuration (pull from https://www.strava.com/settings/api)
+
+# 参考 strava
+
+STRAVA_CLIENT_ID = 86354
+STRAVA_CLIENT_SECRET = 6aa590a88a047ac6d9e05c672954edf596134ae5
+
+# FitTrackee configuration
+
+# configure an app at https://<fittrackee_host>/profile/apps with
+
+# "workouts:read workouts:write" scopes
+
+# 参考 fittrackee 的配置
+
+FITTRACKEE_HOST = fit-track.writely.xyz
+FITTRACKEE_CLIENT_ID = CyndkFSWubcFC4wGHFpdf
+FITTRACKEE_CLIENT_SECRET = euLul9vC4tbzGmEkQn7IhoiHeEbB50sgds3r7i8frEL1Cteil
+```
+
+## 授权
+
+```bash
+poetry run python -m strava_to_fittrackee.s2f --setup-tokens
+```
+
+执行上面的命令后，终端会弹出一个 URL 链接，点击链接或复制链接至浏览器跳转至 Strava 授权页面，此时当点击 Authorize 后，浏览器会返回也给非正常网页，将此 URL 复制到终端然后回车。
+
+正常状态终端会返回一个新的 URL，重复上面的步骤会跳转至 FitTrackee 的授权页面，点击授权后，复制地址栏中的 URL 地址至终端。此时完成了授权工作。
+
+## 基本使用
+
+```bash
+poetry run python -m strava_to_fittrackee.s2f --sync -v 2
+```
+
+本命令会同步所有的 strava 数据至 FitTrackee。需要注意的是，Strava 的单日 api 请求为 2000 次，构建一个 gpx 需要访问 4 次接口。因此，当你的记录超过 200 时，同步的过程将会需要数天的时间。
+
+下图展示的是我的个人同步完成的数据。
+
+![image.png](https://ossk.cc/file/95445035832a6052e8f37.png)
+
+![image.png](https://ossk.cc/file/2bbd02f88863ac9b0d2a1.png)
+
+关于 Strava-to-FitTrackee 工具更多的使用案例可以参考它的官方仓库，这里不再演示。
+
+## 此篇文章提及的仓库地址
+
+- https://github.com/jat255/strava-to-fittrackee
+- https://github.com/SamR1/FitTrackee
